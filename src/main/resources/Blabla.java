@@ -2,6 +2,26 @@ import com.github.javaparser.utils.CodeGenerationUtils;
 import com.github.javaparser.utils.SourceRoot;
 
 public class Blabla {
+	
+	int[] getArray() {
+		return new int[0];
+	}
+	
+	Class getClass() {
+		return new Class();
+	}
+	
+	boolean getBoolean() {
+		return true;
+	}
+	
+	char getChar() {
+		return 'b';
+	}
+	
+	int getInt() {
+		return 1;
+	}
 
     private final void method1013(StreamBuffer buf, int opcode) {
         if (opcode != 1) {
