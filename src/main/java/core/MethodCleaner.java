@@ -1,44 +1,35 @@
-package com.yourorganization.maven_sample;
+package core;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.Modifier;
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.NodeList;
+import com.github.javaparser.ast.body.BodyDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
+import com.github.javaparser.ast.body.TypeDeclaration;
+import com.github.javaparser.ast.nodeTypes.NodeWithMembers;
 import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.type.PrimitiveType;
 import com.github.javaparser.ast.type.PrimitiveType.Primitive;
+import com.github.javaparser.ast.type.ReferenceType;
 import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.utils.CodeGenerationUtils;
 import com.github.javaparser.utils.SourceRoot;
 
-public class MethodCleaner {
-	
-	private static final String RETURN = "return";
-	private static final String SEP = " ";
-	private static final char SEMICOLON = ';';
-	private static final char SLASH = '/';
-	private static final Object DEFAULT_OBJECT = null;
-	private static final boolean DEFAULT_BOOLEAN = false;
-	private static final String DEFAULT_CHAR = "'a'";
-	private static final int DEFAULT_PRIMITIVE = 0;
-	private static final String MAIN_STRING = "main";
-	private static final String ARRAY_STRING_STRING = "String[]";
-	private static final String JAVA_COMPILE = "javac";
-	private static final String JAVA_RUN = "java";
-	private static final String ENABLE_ASSERT = "-ea";
-	private static final String CLASS_PATH = "-cp";
-	private static final int EXIT_SUCCESS = 0;
-	private static final String JAVA_EXTENSION = ".java";
-	
-	private static final Modifier PUBLIC_MODIFIER = new Modifier(Modifier.Keyword.PUBLIC);
-	private static final Modifier STATIC_MODIFIER = new Modifier(Modifier.Keyword.STATIC);
+import utils.CommandUtils;
+
+import static utils.Constants.*;
+import static utils.PathUtils.*;
+
+public class MethodCleaner {	
 	
 	private static String getReturnStmt(Object obj) {
 		return RETURN + SEP + obj + SEMICOLON;
@@ -85,11 +76,6 @@ public class MethodCleaner {
 		return cu.findAll(MethodDeclaration.class);
 	}
 	
-	private static Path getPath(String path) {
-		Path projectPath = CodeGenerationUtils.mavenModuleRoot(MethodCleaner.class);
-		return projectPath.resolve(path);
-	}
-	
 	private static SourceRoot getSourceRoot(String path) {
 		Path rootPath = getPath(path);
 		return new SourceRoot(rootPath);
@@ -104,7 +90,8 @@ public class MethodCleaner {
 		return getCompilationUnit(sr, startPackage, filename);
 	}
 	
-	private static void cleanMethods(String sourceRootPath, String startPackage, String filename, String outputPath, boolean cleanVoid, boolean cleanPrimitive, boolean cleanObject) {
+	private static void cleanMethods(String sourceRootPath, String startPackage, String filename, String outputPath, 
+			boolean cleanVoid, boolean cleanPrimitive, boolean cleanObject) {
 		SourceRoot sr = getSourceRoot(sourceRootPath);
 		CompilationUnit cu = getCompilationUnit(sr, startPackage, filename);
 		cleanMethods(cu, cleanVoid, cleanPrimitive, cleanObject);
@@ -143,14 +130,19 @@ public class MethodCleaner {
 	private static boolean isMainMethod(MethodDeclaration md) {
 		NodeList<Modifier> modifiers = md.getModifiers();
 		NodeList<Parameter> parameters = md.getParameters();
+		if (!md.getParentNode().isPresent()) {
+			return false;
+		}
+		TypeDeclaration parent = (TypeDeclaration)md.getParentNode().get();
 		return modifiers != null && modifiers.contains(PUBLIC_MODIFIER) && modifiers.contains(STATIC_MODIFIER) 
 				&& md.getType().isVoidType() && md.getNameAsString().equals(MAIN_STRING) 
-				&& parameters != null && parameters.size() == 1 && parameters.get(0).getTypeAsString().equals(ARRAY_STRING_STRING);
+				&& parameters != null && parameters.size() == 1 && parameters.get(0).getTypeAsString().equals(ARRAY_STRING_STRING)
+				&& parent.getModifiers().contains(PUBLIC_MODIFIER);
 	}
 	
-	private static void cleanMethodsIfTestsPass(String inputPath, String filename, String outputPath) {
-		SourceRoot sr = getSourceRoot(inputPath);
-		CompilationUnit cu = getCompilationUnit(sr, "", filename);
+	private static void cleanMethodsIfTestsPass(String sourceRootPath, String startPackage, String filename, String outputPath) {
+		SourceRoot sr = getSourceRoot(sourceRootPath);
+		CompilationUnit cu = getCompilationUnit(sr, startPackage, filename);
 		Path p = getPath(outputPath);
 		cu.findAll(MethodDeclaration.class).stream().forEach(md -> {
 			if (!isMainMethod(md) && md.getBody().isPresent()) {
@@ -161,7 +153,7 @@ public class MethodCleaner {
 					md.getBody().get().addStatement(getDefaultReturnStmt(type));
 				}
 				sr.saveAll(p);
-				if (!compileAndRunSuccessfully(outputPath, filename)) { 
+				if (!CommandUtils.compileAndRunSuccessfully(outputPath, startPackage, filename)) { 
 					md.setBody(orig);
 				}
 			}
@@ -169,39 +161,21 @@ public class MethodCleaner {
 		sr.saveAll(p);
 	}
 	
-	private static String getCompileCommand(String filePath) {
-		return JAVA_COMPILE + SEP + filePath;
-	}
-	
-	private static boolean compileSuccessfully(String path, String filename) {
-		String filePath = getPath(path).resolve(filename).toString(), cmd = getCompileCommand(filePath);
-		return runCommandSuccessfully(cmd);
-	}
-	
-	private static String getRunCommand(String path, String file) {
-		return String.join(SEP, JAVA_RUN, ENABLE_ASSERT, CLASS_PATH, path, file);
-	}
-	
-	private static boolean runSuccessfully(String path, String filename) {
-		String dirPath = getPath(path).toString();
-		String str = filename.substring(0, filename.length() - JAVA_EXTENSION.length());
-		String cmd = getRunCommand(dirPath, str);
-		return runCommandSuccessfully(cmd);
-	}
-	
-	private static boolean compileAndRunSuccessfully(String path, String filename) {
-		return compileSuccessfully(path, filename) && runSuccessfully(path, filename);
-	}
-	
-	private static boolean runCommandSuccessfully(String cmd) {
-		try {
-			Runtime rt = Runtime.getRuntime();
-			Process proc = rt.exec(cmd);
-			int exitVal = proc.waitFor();
-			return exitVal == EXIT_SUCCESS;
-		} catch (Throwable t) {
-			return false;
-		}
+	private static void removeMethodsIfTestsPass(String sourceRootPath, String startPackage, String filename, String outputPath) {
+		SourceRoot sr = getSourceRoot(sourceRootPath);
+		CompilationUnit cu = getCompilationUnit(sr, startPackage, filename);
+		Path p = getPath(outputPath);
+		cu.findAll(MethodDeclaration.class).stream().forEach(md -> {
+			if (!isMainMethod(md) && md.getParentNode().isPresent()) {
+				NodeWithMembers<MethodDeclaration> parentNode = (NodeWithMembers<MethodDeclaration>)md.getParentNode().get();
+				md.remove();
+				sr.saveAll(p);
+				if (!CommandUtils.compileAndRunSuccessfully(outputPath, startPackage, filename)) {
+					parentNode.addMember(md);
+				}
+			}
+		});
+		sr.saveAll(p);
 	}
 
 	public static void main(String[] args) {
@@ -210,7 +184,8 @@ public class MethodCleaner {
 //		cleanObjectMethods("src/main/resources", "", "Blabla.java", "output");
 //		cleanPrimitiveMethods("src/main/resources", "", "Blabla.java", "output");
 //		cleanMethods("src/main/resources", "", "Blabla.java", "output", true, true, true);
-		cleanMethodsIfTestsPass("src/main/resources", "Blabla.java", "output");
-		cleanMethodsIfTestsPass("src/main/resources/backtracking", "BronKerbosh.java", "output");
+//		cleanMethodsIfTestsPass("src/main/resources", "backtracking", "BronKerbosh.java", "output");
+		removeMethodsIfTestsPass("src/main/resources", "backtracking", "BronKerbosh.java", "output");
+//		removeMethodsIfTestsPass("src/main/resources", "", "Blabla.java", "output");
 	}
 }

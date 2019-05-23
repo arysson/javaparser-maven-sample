@@ -1,4 +1,4 @@
-//package backtracking;
+package backtracking;
 
 import java.util.Random;
 
@@ -36,10 +36,10 @@ public class BronKerbosh {
                         g[i] |= 1L << j;
                         g[j] |= 1L << i;
                     }
-            int res1 = maximumCliqueWeight(g, 0, (1L << n) - 1, 0, weights);
+            /*int res1 = maximumCliqueWeight(g, 0, (1L << n) - 1, 0, weights);
             int res2 = maximumCliqueWeightSlow(g, weights);
             if (res1 != res2)
-                throw new RuntimeException();
+                throw new RuntimeException();*/
         }
     }
 

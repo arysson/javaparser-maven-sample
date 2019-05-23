@@ -1,18 +1,25 @@
+
 class MyClass {
-	int getValue() {
-		return 123;
+	public static void main(String[] args) {
+		System.out.println("Main method of another class!");
 	}
 }
 
-public abstract class Blabla {
+public class Blabla {
+	
+	class MyClass {
+		int getValue() {
+			return 123;
+		}
+	}
 	
 	int[] getArray() {
 		return new int[0];
 	}
 	
-	Object getObject() {
-		return new Object();
-	}
+//	Object getObject() {
+//		return new Test();
+//	}
 	
 	static boolean getBoolean(String str) {
 		return str.equals("blabla");
@@ -25,8 +32,6 @@ public abstract class Blabla {
 	static int getInt() {
 		return 1;
 	}
-	
-	abstract int getInt2();
 
     private final void method1013(MyClass mc, int x) {
         System.out.println("method1013");
