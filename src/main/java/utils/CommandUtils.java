@@ -9,12 +9,12 @@ import java.io.InputStreamReader;
 import java.nio.file.Paths;
 
 public class CommandUtils {
-	private static String getCompileCommand(String filePath) {
-		return JAVA_COMPILE + SEP + filePath;
+	private static String getCompileCommand(String dirPath, String filePath) {
+		return String.join(SEP, JAVA_COMPILE, CLASS_PATH, dirPath, filePath);
 	}
 	
 	private static boolean compileSuccessfully(String sourceRootPath, String startPackage, String filename) {
-		String filePath = getPathStr(sourceRootPath, startPackage, filename), cmd = getCompileCommand(filePath);
+		String filePath = getPathStr(sourceRootPath, startPackage, filename), dirPath = getPathStr(sourceRootPath), cmd = getCompileCommand(dirPath, filePath);
 		return runCommandSuccessfully(cmd);
 	}
 	
@@ -35,7 +35,8 @@ public class CommandUtils {
 	}
 	
 	private static boolean runCommandSuccessfully(String cmd) {
-		boolean DEBUG = System.getenv(Constants.DEBUG) != null;
+		String value = System.getenv(Constants.DEBUG);
+		boolean DEBUG = value != null && !value.equals("0");
 		try {
 			Runtime rt = Runtime.getRuntime();
 			Process proc = rt.exec(cmd);

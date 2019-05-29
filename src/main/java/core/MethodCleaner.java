@@ -1,6 +1,7 @@
 package core;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
@@ -140,52 +141,56 @@ public class MethodCleaner {
 				&& parent.getModifiers().contains(PUBLIC_MODIFIER);
 	}
 	
-	private static void cleanMethodsIfTestsPass(String sourceRootPath, String startPackage, String filename, String outputPath) {
+	private static void cleanMethodsIfTestsPass(String sourceRootPath, String testPackage, String testFile, String outputPath) throws IOException {
 		SourceRoot sr = getSourceRoot(sourceRootPath);
-		CompilationUnit cu = getCompilationUnit(sr, startPackage, filename);
+		CompilationUnit cuTest = getCompilationUnit(sr, testPackage, testFile);
 		Path p = getPath(outputPath);
-		cu.findAll(MethodDeclaration.class).stream().forEach(md -> {
-			if (!isMainMethod(md) && md.getBody().isPresent()) {
-				Type type = md.getType();
-				BlockStmt orig = md.getBody().get();
-				md.createBody();
-				if (!type.isVoidType()) {
-					md.getBody().get().addStatement(getDefaultReturnStmt(type));
-				}
-				sr.saveAll(p);
-				if (!CommandUtils.compileAndRunSuccessfully(outputPath, startPackage, filename)) { 
-					md.setBody(orig);
-				}
+		sr.tryToParse();
+		for (CompilationUnit cu: sr.getCompilationUnits()) {
+			if (!cu.equals(cuTest)) {
+				cu.findAll(MethodDeclaration.class).stream().forEach(md -> {
+					if (md.getBody().isPresent()) {
+						Type type = md.getType();
+						BlockStmt orig = md.getBody().get();
+						md.createBody();
+						if (!type.isVoidType()) {
+							md.getBody().get().addStatement(getDefaultReturnStmt(type));
+						}
+						sr.saveAll(p);
+						if (!CommandUtils.compileAndRunSuccessfully(outputPath, testPackage, testFile)) { 
+							md.setBody(orig);
+						}
+					}
+				});
 			}
-		});
+		}
 		sr.saveAll(p);
 	}
 	
-	private static void removeMethodsIfTestsPass(String sourceRootPath, String startPackage, String filename, String outputPath) {
+	private static void removeMethodsIfTestsPass(String sourceRootPath, String testPackage, String testFile, String outputPath) throws IOException {
 		SourceRoot sr = getSourceRoot(sourceRootPath);
-		CompilationUnit cu = getCompilationUnit(sr, startPackage, filename);
+		CompilationUnit cuTest = getCompilationUnit(sr, testPackage, testFile);
 		Path p = getPath(outputPath);
-		cu.findAll(MethodDeclaration.class).stream().forEach(md -> {
-			if (!isMainMethod(md) && md.getParentNode().isPresent()) {
-				NodeWithMembers<MethodDeclaration> parentNode = (NodeWithMembers<MethodDeclaration>)md.getParentNode().get();
-				md.remove();
-				sr.saveAll(p);
-				if (!CommandUtils.compileAndRunSuccessfully(outputPath, startPackage, filename)) {
-					parentNode.addMember(md);
-				}
+		sr.tryToParse();
+		for (CompilationUnit cu: sr.getCompilationUnits()) {
+			if (!cu.equals(cuTest)) {
+				cu.findAll(MethodDeclaration.class).stream().forEach(md -> {
+					if (md.getParentNode().isPresent()) {
+						NodeWithMembers<MethodDeclaration> parentNode = (NodeWithMembers<MethodDeclaration>)md.getParentNode().get();
+						md.remove();
+						sr.saveAll(p);
+						if (!CommandUtils.compileAndRunSuccessfully(outputPath, testPackage, testFile)) {
+							parentNode.addMember(md);
+						}
+					}
+				});
 			}
-		});
+		}
 		sr.saveAll(p);
 	}
 
-	public static void main(String[] args) {
-//		showMethods("src/main/resources", "", "Blabla.java");
-//		cleanVoidMethods("src/main/resources", "", "Blabla.java", "output");
-//		cleanObjectMethods("src/main/resources", "", "Blabla.java", "output");
-//		cleanPrimitiveMethods("src/main/resources", "", "Blabla.java", "output");
-//		cleanMethods("src/main/resources", "", "Blabla.java", "output", true, true, true);
-//		cleanMethodsIfTestsPass("src/main/resources", "backtracking", "BronKerbosh.java", "output");
-		removeMethodsIfTestsPass("src/main/resources", "backtracking", "BronKerbosh.java", "output");
-//		removeMethodsIfTestsPass("src/main/resources", "", "Blabla.java", "output");
+	public static void main(String[] args) throws IOException {
+//		cleanMethodsIfTestsPass("src/main/resources", "test", "ArraysTests.java", "output");
+		removeMethodsIfTestsPass("src/main/resources", "test", "ArraysTests.java", "output");
 	}
 }
